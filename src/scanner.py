@@ -219,6 +219,14 @@ def save_results(results: Dict[str, List[Dict]]):
             save_scan_result(scan_date, strategy_name, stocks)
     
     print(f"✅ 结果已保存到数据库")
+    
+    # 推送结果
+    try:
+        from src.push import send_to_feishu
+        print("📤 正在推送结果...")
+        send_to_feishu(results, scan_date)
+    except Exception as e:
+        print(f"⚠️  推送失败：{e}")
 
 def main():
     """主函数"""
