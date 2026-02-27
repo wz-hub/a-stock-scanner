@@ -232,8 +232,10 @@ def backtest_all_strategies(strategies: Dict[str, BaseStrategy],
     print(f"📋 获取到 {len(stock_list)} 只股票\n")
     
     all_results = {}
+    total = len(strategies)
     
-    for name, strategy in strategies.items():
+    for idx, (name, strategy) in enumerate(strategies.items(), 1):
+        print(f"\n[{idx}/{total}] 回测策略：{name}")
         result = backtest_strategy(strategy, stock_list, start_date, end_date, hold_days)
         all_results[name] = result
         result.print_report()

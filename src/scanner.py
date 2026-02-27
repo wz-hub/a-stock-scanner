@@ -20,10 +20,10 @@ from src.database import (
 from src.data_fetcher import get_all_a_stocks, get_batch_current_prices
 from src.strategy_base import BaseStrategy
 
-# 配置（经回测验证的有效策略）
+# 配置（60 天回测验证的有效策略）
 CONFIG = {
     'strategies_dir': os.path.join(os.path.dirname(__file__), '..', 'strategies'),
-    'enabled_strategies': ['bollinger_rebound', 'rsi_oversold'],
+    'enabled_strategies': ['bollinger_rebound', 'rsi_oversold', 'macd_cross'],
     'history_days': 60,  # 获取历史天数
     'batch_size': 100,   # 批量处理大小
 }

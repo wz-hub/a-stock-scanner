@@ -193,51 +193,50 @@ def get_stock_current_info(code: str) -> Optional[Dict]:
 
 def get_stock_history(code: str, days: int = 60) -> Optional[pd.DataFrame]:
     """
-    获取股票历史行情（新浪财经）
+    获取股票历史行情（腾讯财经 API）
     
     Args:
         code: 股票代码
         days: 获取天数
     
     Returns:
-        DataFrame with columns: date, open, close, high, low, volume
+        DataFrame with columns: date, open, close, high, low, volume, amount
     """
     try:
         # 确定市场前缀
         prefix = 'sh' if code.startswith('6') else 'sz'
         symbol = f"{prefix}{code}"
         
-        # 新浪财经历史 K 线接口
-        url = 'http://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData'
-        params = {
-            'symbol': symbol,
-            'scale': 240,  # 日 K
-            'ma': 'ma5,ma10,ma20',
-            'datalen': days
-        }
+        # 计算日期范围
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days + 30)  # 多获取一些确保足够
+        
+        # 腾讯财经历史 K 线接口
+        url = 'http://web.ifzq.gtimg.cn/appstock/app/fqkline/get'
+        param = f"{symbol},day,{start_date.strftime('%Y-%m-%d')},{end_date.strftime('%Y-%m-%d')},{days},qfq"
+        params = {'param': param}
         
         response = requests.get(url, params=params, timeout=15)
         
         if response.status_code != 200:
             return None
         
-        data = response.json()
+        json_data = response.json()
         
-        if not data:
+        # 解析腾讯返回的数据
+        if not json_data or json_data.get('code') != 0:
+            return None
+        
+        data = json_data.get('data', {})
+        stock_data = data.get(symbol, {})
+        klines = stock_data.get('qfqday', [])
+        
+        if not klines:
             return None
         
         # 转换为 DataFrame
-        df = pd.DataFrame(data)
-        
-        # 重命名列
-        df = df.rename(columns={
-            'day': 'date',
-            'open': 'open',
-            'close': 'close',
-            'high': 'high',
-            'low': 'low',
-            'volume': 'volume'
-        })
+        # 腾讯格式：[日期，开盘，收盘，最高，最低，成交量]
+        df = pd.DataFrame(klines, columns=['date', 'open', 'close', 'high', 'low', 'volume'])
         
         # 数据类型转换
         df['open'] = pd.to_numeric(df['open'], errors='coerce')
