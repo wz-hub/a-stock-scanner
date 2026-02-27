@@ -91,7 +91,10 @@ def build_message(results: Dict[str, List[Dict]], scan_date: str) -> str:
     for strategy, stocks in filtered_results.items():
         strategy_names = {
             'golden_cross': '🔺 均线金叉',
-            'macd_cross': '📊 MACD 金叉'
+            'macd_cross': '📊 MACD 金叉',
+            'volume_break': '📈 放量突破',
+            'rsi_oversold': '🔄 RSI 超卖反弹',
+            'bollinger_rebound': '📉 布林带下轨反弹'
         }
         
         name = strategy_names.get(strategy, strategy)

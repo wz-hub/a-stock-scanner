@@ -23,7 +23,7 @@ from src.strategy_base import BaseStrategy
 # 配置
 CONFIG = {
     'strategies_dir': os.path.join(os.path.dirname(__file__), '..', 'strategies'),
-    'enabled_strategies': ['golden_cross', 'macd_cross'],  # 启用的策略
+    'enabled_strategies': ['golden_cross', 'macd_cross', 'volume_break', 'rsi_oversold', 'bollinger_rebound'],
     'history_days': 60,  # 获取历史天数
     'batch_size': 100,   # 批量处理大小
 }
