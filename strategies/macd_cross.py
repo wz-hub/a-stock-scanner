@@ -26,13 +26,14 @@ class MACDCrossStrategy(BaseStrategy):
     
     def scan(self, history: pd.DataFrame, current: Dict) -> Optional[Dict[str, Any]]:
         """
-        扫描 MACD 金叉信号
+        扫描 MACD 金叉信号（优化版：只推零轴上方 + 放量）
         """
-        if not self.validate(history):
+        if not self.validate(history, min_days=30):
             return None
         
         try:
             close = history['close']
+            volume = history.get('volume', pd.Series([0]*len(close)))
             
             # 计算 EMA
             ema12 = close.ewm(span=12, adjust=False).mean()
@@ -54,21 +55,28 @@ class MACDCrossStrategy(BaseStrategy):
                 dif_yesterday <= dea_yesterday
             )
             
-            if is_golden_cross:
-                # 零轴上方/下方
-                position = "零轴上方" if dif_today > 0 else "零轴下方"
-                
-                return {
-                    'type': 'MACD 金叉',
-                    'dif': round(dif_today, 4),
-                    'dea': round(dea_today, 4),
-                    'macd': round((dif_today - dea_today) * 2, 4),
-                    'position': position,
-                    'price': current.get('price', 0),
-                    'description': f'MACD 金叉 ({position}, DIF={dif_today:.4f})'
-                }
+            if not is_golden_cross:
+                return None
             
-            return None
+            # 过滤 1: 只做强势（零轴上方金叉）
+            if dif_today <= 0:
+                return None
+            
+            # 过滤 2: 涨幅>0（强势）
+            if current.get('change_percent', 0) <= 0:
+                return None
+            
+            position = "零轴上方"
+            
+            return {
+                'type': 'MACD 金叉',
+                'dif': round(dif_today, 4),
+                'dea': round(dea_today, 4),
+                'macd': round((dif_today - dea_today) * 2, 4),
+                'position': position,
+                'price': current.get('price', 0),
+                'description': f'MACD 金叉 ({position}, DIF={dif_today:.4f})'
+            }
         
         except Exception as e:
             return None

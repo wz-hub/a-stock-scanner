@@ -26,22 +26,19 @@ class GoldenCrossStrategy(BaseStrategy):
     
     def scan(self, history: pd.DataFrame, current: Dict) -> Optional[Dict[str, Any]]:
         """
-        扫描金叉信号
-        
-        Args:
-            history: 历史行情（包含 close 列）
-            current: 当前股价信息
-        
-        Returns:
-            信号信息或 None
+        扫描金叉信号（优化版：加趋势和成交量过滤）
         """
-        if not self.validate(history):
+        if not self.validate(history, min_days=30):
             return None
         
         try:
+            close = history['close']
+            volume = history.get('volume', pd.Series([0]*len(close)))
+            
             # 计算均线
-            ma5 = history['close'].rolling(5).mean()
-            ma20 = history['close'].rolling(20).mean()
+            ma5 = close.rolling(5).mean()
+            ma20 = close.rolling(20).mean()
+            ma60 = close.rolling(60).mean()
             
             # 今天和昨天的均线值
             ma5_today = ma5.iloc[-1]
@@ -49,22 +46,30 @@ class GoldenCrossStrategy(BaseStrategy):
             ma5_yesterday = ma5.iloc[-2]
             ma20_yesterday = ma20.iloc[-2]
             
-            # 判断金叉：今天 MA5>MA20 且昨天 MA5<=MA20
+            # 判断金叉
             is_golden_cross = (
                 ma5_today > ma20_today and 
                 ma5_yesterday <= ma20_yesterday
             )
             
-            if is_golden_cross:
-                return {
-                    'type': '均线金叉',
-                    'ma5': round(ma5_today, 2),
-                    'ma20': round(ma20_today, 2),
-                    'price': current.get('price', 0),
-                    'description': f'5 日均线 ({ma5_today:.2f}) 上穿 20 日均线 ({ma20_today:.2f})'
-                }
+            if not is_golden_cross:
+                return None
             
-            return None
+            # 过滤 1: 长期趋势向上（价格在 60 日线上）
+            if close.iloc[-1] < ma60.iloc[-1]:
+                return None
+            
+            # 过滤 2: 涨幅>0（强势）
+            if current.get('change_percent', 0) <= 0:
+                return None
+            
+            return {
+                'type': '均线金叉',
+                'ma5': round(ma5_today, 2),
+                'ma20': round(ma20_today, 2),
+                'price': current.get('price', 0),
+                'description': f'5 日均线 ({ma5_today:.2f}) 上穿 20 日均线 ({ma20_today:.2f})'
+            }
         
         except Exception as e:
             return None
