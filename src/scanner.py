@@ -185,19 +185,42 @@ def run_scan() -> Dict[str, List[Dict]]:
     
     return all_results
 
+def sort_results(results: Dict[str, List[Dict]]) -> Dict[str, List[Dict]]:
+    """按涨幅降序排序结果"""
+    sorted_results = {}
+    for strategy_name, stocks in results.items():
+        # 按涨幅降序排序
+        sorted_stocks = sorted(stocks, key=lambda x: x.get('change_percent', 0), reverse=True)
+        sorted_results[strategy_name] = sorted_stocks
+    return sorted_results
+
+def filter_positive(results: Dict[str, List[Dict]]) -> Dict[str, List[Dict]]:
+    """筛选涨幅>0 的股票"""
+    filtered = {}
+    for strategy_name, stocks in results.items():
+        positive_stocks = [s for s in stocks if s.get('change_percent', 0) > 0]
+        filtered[strategy_name] = positive_stocks
+    return filtered
+
 def print_results(results: Dict[str, List[Dict]]):
     """打印结果"""
+    # 先排序
+    results = sort_results(results)
+    
     print("\n" + "="*70)
     print("                    📊 扫描结果汇总")
     print("="*70 + "\n")
     
     # 汇总统计
     total = sum(len(stocks) for stocks in results.values())
-    print(f"  总计信号：{total} 只股票\n")
+    positive_count = sum(len([s for s in stocks if s.get('change_percent', 0) > 0]) for stocks in results.values())
+    print(f"  总计信号：{total} 只股票")
+    print(f"  强势股（涨幅>0）：{positive_count} 只\n")
     
     for strategy_name, stocks in results.items():
+        pos_count = len([s for s in stocks if s.get('change_percent', 0) > 0])
         status = "✅" if stocks else "⚪"
-        print(f"  {status} {strategy_name}: {len(stocks)} 只")
+        print(f"  {status} {strategy_name}: {len(stocks)} 只 (强势：{pos_count}只)")
     
     print("\n" + "="*70 + "\n")
     
@@ -207,21 +230,24 @@ def print_results(results: Dict[str, List[Dict]]):
             print(f"⚪ {strategy_name.upper()}: 无信号\n")
             continue
         
-        print(f"🔥 {strategy_name.upper()}（共 {len(stocks)} 只）")
+        pos_count = len([s for s in stocks if s.get('change_percent', 0) > 0])
+        print(f"🔥 {strategy_name.upper()}（共 {len(stocks)} 只，强势 {pos_count} 只）")
         print("-"*70)
         
         # 表头
         print(f"  {'序号':<4} {'代码':<8} {'名称':<12} {'价格':>8} {'涨幅':>10}   信号说明")
         print(f"  {'-'*4} {'-'*8} {'-'*12} {'-'*8} {'-'*10}   {'-'*30}")
         
-        # 列表（最多 20 只）
-        for idx, s in enumerate(stocks[:20], 1):
+        # 列表（最多 15 只）
+        for idx, s in enumerate(stocks[:15], 1):
             sig = s['signal']
             desc = sig.get('description', str(sig))[:35]  # 截断过长描述
             
-            # 涨幅颜色标记
+            # 涨幅标记
             change = s['change_percent']
-            if change > 0:
+            if change > 3:
+                change_str = f"🔥 +{change:.2f}%"
+            elif change > 0:
                 change_str = f"+{change:.2f}%"
             elif change < 0:
                 change_str = f"{change:.2f}%"
@@ -230,22 +256,26 @@ def print_results(results: Dict[str, List[Dict]]):
             
             print(f"  {idx:<4} {s['code']:<8} {s['name']:<12} {s['price']:>8.2f} {change_str:>10}   {desc}")
         
-        if len(stocks) > 20:
-            print(f"\n  ... 还有 {len(stocks) - 20} 只，详见数据库")
+        if len(stocks) > 15:
+            print(f"\n  ... 还有 {len(stocks) - 15} 只，详见数据库")
         
         print()
 
 def save_results(results: Dict[str, List[Dict]]):
-    """保存结果"""
+    """保存并推送结果"""
     scan_date = datetime.now().strftime('%Y-%m-%d')
     
+    # 先排序（按涨幅降序）
+    results = sort_results(results)
+    
+    # 保存全部结果到数据库
     for strategy_name, stocks in results.items():
         if stocks:
             save_scan_result(scan_date, strategy_name, stocks)
     
     print(f"✅ 结果已保存到数据库")
     
-    # 推送结果
+    # 推送精简版（只推强势股）
     try:
         from src.push import send_to_dingtalk
         print("📤 正在推送结果...")

@@ -66,59 +66,53 @@ def send_to_dingtalk(results: Dict[str, List[Dict]], scan_date: str = None) -> b
         return False
 
 def build_message(results: Dict[str, List[Dict]], scan_date: str) -> str:
-    """构建消息内容"""
+    """构建消息内容 - 精简版，只推强势股"""
+    
+    # 筛选涨幅>0 的股票
+    filtered_results = {}
+    for strategy, stocks in results.items():
+        positive = [s for s in stocks if s.get('change_percent', 0) > 0]
+        if positive:
+            filtered_results[strategy] = positive
+    
+    total_positive = sum(len(v) for v in filtered_results.values())
+    total_all = sum(len(v) for v in results.values())
     
     lines = []
     lines.append(f"## 📈 A 股策略扫描结果\n")
-    lines.append(f"**扫描日期**: {scan_date}\n")
-    lines.append(f"**总计信号**: {sum(len(v) for v in results.values())} 只股票\n")
+    lines.append(f"**日期**: {scan_date}\n")
+    lines.append(f"**信号**: {total_positive}/{total_all} 只强势股\n")
     
-    # 汇总统计
-    lines.append("### 📊 结果汇总")
-    for strategy, stocks in results.items():
-        emoji = "🔥" if len(stocks) > 0 else "⚪"
-        lines.append(f"- {emoji} **{strategy}**: {len(stocks)} 只")
+    if total_positive == 0:
+        lines.append("> ⚠️ 今日无强势股信号")
+        return "\n".join(lines)
     
-    lines.append("")
-    
-    # 显示每个策略的前 10 只
-    for strategy, stocks in results.items():
-        if not stocks:
-            lines.append(f"⚪ **{strategy.upper()}**: 无信号\n")
-            continue
-        
+    # 显示每个策略的前 5 只强势股
+    for strategy, stocks in filtered_results.items():
         strategy_names = {
             'golden_cross': '🔺 均线金叉',
             'macd_cross': '📊 MACD 金叉'
         }
         
         name = strategy_names.get(strategy, strategy)
-        lines.append(f"### {name}（共 {len(stocks)} 只）")
+        lines.append(f"### {name}（{len(stocks)}只）")
         lines.append("")
-        lines.append("| 序号 | 代码 | 名称 | 价格 | 涨幅 | 信号 |")
-        lines.append("|------|------|------|------|------|------|")
+        lines.append("| 代码 | 名称 | 价格 | 涨幅 |")
+        lines.append("|------|------|------|------|")
         
-        for idx, s in enumerate(stocks[:10], 1):
-            signal_info = s['signal']
-            desc = signal_info.get('description', '') if isinstance(signal_info, dict) else str(signal_info)
-            # 截断过长的信号描述
-            if len(desc) > 25:
-                desc = desc[:22] + "..."
-            
+        # 只推前 5 只
+        for s in stocks[:5]:
             change = s['change_percent']
-            change_str = f"{change:+.2f}%"
+            change_str = f"+{change:.2f}%" if change > 0 else f"{change:.2f}%"
             
             lines.append(
-                f"| {idx} | {s['code']} | {s['name']} | ¥{s['price']:.2f} | {change_str} | {desc} |"
+                f"| {s['code']} | {s['name']} | ¥{s['price']:.2f} | {change_str} |"
             )
         
-        if len(stocks) > 10:
-            lines.append(f"\n> ... 还有 {len(stocks) - 10} 只，详见数据库")
+        if len(stocks) > 5:
+            lines.append(f"\n> ...共{len(stocks)}只，详见数据库")
         
         lines.append("")
-    
-    if all(len(v) == 0 for v in results.values()):
-        lines.append("> ⚠️  今日无符合策略的股票")
     
     return "\n".join(lines)
 
