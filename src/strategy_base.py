@@ -42,8 +42,8 @@ class BaseStrategy(ABC):
         """
         pass
     
-    def validate(self, history: pd.DataFrame) -> bool:
+    def validate(self, history: pd.DataFrame, min_days: int = 30) -> bool:
         """验证数据是否足够"""
         if history is None or history.empty:
             return False
-        return len(history) >= 30
+        return len(history) >= min_days

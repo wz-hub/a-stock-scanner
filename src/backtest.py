@@ -167,11 +167,19 @@ def backtest_strategy(strategy: BaseStrategy, stock_list: List[Dict],
             
             # 获取当前价格信息（模拟）
             current_row = history_filtered.iloc[i]
+            
+            # 计算当日涨跌幅
+            if i > 0:
+                prev_close = history_filtered.iloc[i-1]['close']
+                change_percent = (current_row['close'] - prev_close) / prev_close * 100
+            else:
+                change_percent = 0
+            
             current = {
                 'code': code,
                 'name': stock['name'],
                 'price': current_row['close'],
-                'change_percent': 0  # 回测中不使用涨跌幅
+                'change_percent': change_percent
             }
             
             # 运行策略
