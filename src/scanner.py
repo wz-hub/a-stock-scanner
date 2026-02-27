@@ -17,7 +17,7 @@ from src.database import (
     init_db, get_stock_list, save_stocks, save_history, 
     get_history, save_scan_result, get_scan_results
 )
-from src.data_fetcher import get_all_a_stocks, get_current_prices
+from src.data_fetcher import get_all_a_stocks, get_batch_current_prices
 from src.strategy_base import BaseStrategy
 
 # 配置
@@ -137,7 +137,7 @@ def run_scan() -> Dict[str, List[Dict]]:
     # 获取当前股价
     print("📈 获取实时股价...")
     codes = [s['code'] for s in stocks]
-    prices = get_current_prices(codes)
+    prices = get_batch_current_prices(codes)
     print(f"✅ 获取到 {len(prices)} 只股票的实时价格\n")
     
     # 扫描结果
@@ -187,26 +187,51 @@ def run_scan() -> Dict[str, List[Dict]]:
 
 def print_results(results: Dict[str, List[Dict]]):
     """打印结果"""
-    print("\n" + "="*60)
-    print("📊 扫描结果汇总")
-    print("="*60 + "\n")
+    print("\n" + "="*70)
+    print("                    📊 扫描结果汇总")
+    print("="*70 + "\n")
+    
+    # 汇总统计
+    total = sum(len(stocks) for stocks in results.values())
+    print(f"  总计信号：{total} 只股票\n")
     
     for strategy_name, stocks in results.items():
-        print(f"{strategy_name}: {len(stocks)} 只")
+        status = "✅" if stocks else "⚪"
+        print(f"  {status} {strategy_name}: {len(stocks)} 只")
     
-    print("\n" + "-"*60 + "\n")
+    print("\n" + "="*70 + "\n")
     
+    # 详细列表
     for strategy_name, stocks in results.items():
         if not stocks:
+            print(f"⚪ {strategy_name.upper()}: 无信号\n")
             continue
         
-        print(f"🔥 {strategy_name.upper()}（前 30 只）")
-        print("-"*60)
+        print(f"🔥 {strategy_name.upper()}（共 {len(stocks)} 只）")
+        print("-"*70)
         
-        for s in stocks[:30]:
+        # 表头
+        print(f"  {'序号':<4} {'代码':<8} {'名称':<12} {'价格':>8} {'涨幅':>10}   信号说明")
+        print(f"  {'-'*4} {'-'*8} {'-'*12} {'-'*8} {'-'*10}   {'-'*30}")
+        
+        # 列表（最多 20 只）
+        for idx, s in enumerate(stocks[:20], 1):
             sig = s['signal']
-            desc = sig.get('description', str(sig))
-            print(f"{s['code']} {s['name']} | ￥{s['price']:.2f} {s['change_percent']:.2f}% | {desc}")
+            desc = sig.get('description', str(sig))[:35]  # 截断过长描述
+            
+            # 涨幅颜色标记
+            change = s['change_percent']
+            if change > 0:
+                change_str = f"+{change:.2f}%"
+            elif change < 0:
+                change_str = f"{change:.2f}%"
+            else:
+                change_str = "0.00%"
+            
+            print(f"  {idx:<4} {s['code']:<8} {s['name']:<12} {s['price']:>8.2f} {change_str:>10}   {desc}")
+        
+        if len(stocks) > 20:
+            print(f"\n  ... 还有 {len(stocks) - 20} 只，详见数据库")
         
         print()
 
@@ -222,9 +247,9 @@ def save_results(results: Dict[str, List[Dict]]):
     
     # 推送结果
     try:
-        from src.push import send_to_feishu
+        from src.push import send_to_dingtalk
         print("📤 正在推送结果...")
-        send_to_feishu(results, scan_date)
+        send_to_dingtalk(results, scan_date)
     except Exception as e:
         print(f"⚠️  推送失败：{e}")
 
